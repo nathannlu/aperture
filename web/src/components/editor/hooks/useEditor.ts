@@ -21,21 +21,28 @@ export function getAllStepsWithFrames(dict, frame) {
  * Manages sending and receiving data from websocket
  */
 export const useEditor = (url) => {
-  const [output, setOutput] = useState(null);
+  const [outputs, setOutputs] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
 
   const [step, setStep] = useState(0);
+  const [doneGenerating, setDoneGenerating] = useState(true);
 
   const wsOpts = {
     onMessage: (data) => {
       const parsed = JSON.parse(data);
       if (parsed.type === "on_sample") {
-        console.log("set output")
         const { data } = parsed;
-        setOutput(data);
-        if (step <= 25) {
+
+        setOutputs(prevOutputs => [...prevOutputs, data]);
+
+        //setOutput(data);
+        if (step <= 40) {
           onSample()
         }
+      }
+
+      if (parsed.type === "on_sample_done") {
+        setDoneGenerating(true);
       }
     },
     onOpen: () => {
@@ -82,8 +89,9 @@ export const useEditor = (url) => {
   return {
     prepareLatents,
     onSample,
-    output,
+    outputs,
     isConnected,
-
+    doneGenerating,
+    setDoneGenerating,
   }
 }

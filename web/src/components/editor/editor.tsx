@@ -1,17 +1,15 @@
 "use client"
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { denoise } from "@/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label"
 import { FrameTimeline } from "@/components/frames";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge";
 import { CardStack } from "@/components/ui/card-stack"
-import { ImagePlayer } from "@/components/video-player"
 import { Loader2 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
-import { FileUpload } from "@/components/ui/file-upload";
 import {
   Dialog,
   DialogContent,
@@ -22,27 +20,51 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { useEditor, getAllStepsWithFrames } from "./hooks/useEditor";
+import { useImagePlayer } from "./hooks/useImagePlayer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { BoundingBoxLabeler } from "@/components/bounding-box-labeler"
+import { ImagePlayer } from "@/components/video-player-2"
 
+import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
 
 
 export function Editor() {
   const [prompt, setPrompt] = useState("");
+  const [seed, setSeed] = useState(47);
   const [model, setModel] = useState("FLUX");
   const url = model === "FLUX" ? "/ws-flux" : "/ws";
   const [needPrepareLatentUpdate, setNeedPrepareLatentUpdate] = useState(false);
   const { 
+    outputs,
     isConnected,
-    output,
     prepareLatents,
     onSample,
+    doneGenerating,
+    setDoneGenerating,
   } = useEditor(url);
   const [isLoading, setIsLoading] = useState(false);
 
 
+  // images
+  const output = outputs[outputs.length - 1];
+  const imagesOutputs = outputs.map((output) => `data:image/png;base64,${output.images[0]}`);
+  //const attnMaps = outputs.map((output) => `data:image/png;base64,${output.attn_maps[0]}`);
+
+  const attnMaps = outputs.map((output) => output.attn_maps);
+
+
+  const { currentIndex, isPlaying, progress, togglePlayPause, reset, setCurrentIndex } = useImagePlayer(imagesOutputs, attnMaps, 1000)
+
+
+  useEffect(() => {
+    console.log(outputs)
+  }, [outputs])
+
+
   const runSample = () => {
     try {
-      setIsLoading(true);
+      setDoneGenerating(false);
       if (prompt === "") {
         throw new Error("Prompt is empty");
       }
@@ -59,9 +81,7 @@ export function Editor() {
     } catch (e) {
       // throw toast
       toast.error(e?.message || "Something went wrong");
-    } finally {
-      setIsLoading(false);
-    }
+    } 
   }
 
 
@@ -71,89 +91,91 @@ export function Editor() {
 
 
   return (
-    <div className="container mx-auto">
-      <div>
-        Selected Model: {model}
-        <Button onClick={() => setModel("FLUX")}>
-          Flux
-        </Button>
-        <Button onClick={() => setModel("SD")}>
-          SD 2.1
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-2 my-2 max-w-[540px] mx-auto">
-        <p className="text-sm">
-          Wait until the status shows "Connected", before typing in your prompt and clicking on sample.
-        </p>
-        <div>
-          {isConnected ? <Badge className="bg-green-500">Connected</Badge> : <Badge className="bg-gray-500">Not Connected</Badge>}
-        </div>
-        <Input value={prompt} placeholder="A cat on the road" onChange={(e) => setPrompt(e.target.value)} />
-        <Button 
-          disabled={isLoading}
-          onClick={() => {
-          if (prompt === "") {
-            return;
-          }
-
-          if (needPrepareLatentUpdate) {
-            prepareLatents({ prompt });
-            setNeedPrepareLatentUpdate(false);
-          }
-          onSample()
-        }}>
-          {isLoading ? <Loader2 className="animate-spin" /> : "Sample"}
-        </Button>
-
-        {output && output.images.map((img, i) => (
-          <img className="max-w-[254px]" key={i} src={"data:image/png;base64," + img} />
-        ))}
-      </div>
-
-
-
-      {output?.attn_maps && (
-        <>
-          {model === "SD" ? (
-            <p className="mt-8">
-              Here, we see each layer of the model's attention map. The latent runs from left to right, and the attention map for each word in the prompt is shown in the first column. The table numbers (4096, 1024, 256,... etc) represent the image area the attention is focusing upon. This is each CrossAttention from the Spatial Transformer of the UNet model. <a href="https://scholar.harvard.edu/binxuw/classes/machine-learning-scratch/materials/stable-diffusion-scratch" target="_blank">See more about Stable Diffusion UNets here.</a>
-            </p>
-          ) : null}
-          <div className="grid grid-cols-[repeat(17,minmax(50px,1fr))] gap-4 text-center">
-            {/* Row with headers (keys) */}
-            <div className="contents">
-              <div className="font-bold text-lg border-b pb-2">Prompt words</div>
-              {Object.keys(output?.attn_maps).map((key) => (
-                <div key={key} className="font-bold text-lg border-b pb-2">{key.split("_")[1]}</div>
-              ))}
-            </div>
-
-            {/* Row with images under each header */}
-            <div className="contents">
-              <div>
-                <div className="flex flex-col items-center space-y-2">
-                  {prompt.split(" ").map((word, i) => (
-                    <div className="h-[75px]" key={i}>{word}</div>
-                  ))}
-                </div>
-              </div>
-              {Object.keys(output?.attn_maps).map((key) => (
-                <div key={key} className="flex flex-col items-center space-y-2">
-                  {output?.attn_maps[key]?.map((img, i) => (
-                    <img key={i} src={`data:image/png;base64,${img}`} className="w-32 h-auto" />
-                  ))}
-                </div>
-              ))}
-            </div>
+    <>
+      <div className="flex flex-wrap">
+        <div className="flex flex-col gap-2 my-2 max-w-[420px] p-4">
+          <p className="text-xs">
+            Wait until the status shows "Connected", before typing in your prompt and clicking on sample.
+          </p>
+          <div>
+            {isConnected ? <Badge className="bg-green-500">Connected</Badge> : <Badge className="bg-gray-500">Not Connected</Badge>}
           </div>
-        </>
-      )}
 
+          <div>
+            <Label className="font-bold">Prompt</Label>
+            <p className="text-xs text-gray-500 mb-2">Guide the image generation with text.</p>
+            <Input value={prompt} placeholder="A cat on the road" onChange={(e) => setPrompt(e.target.value)} />
+          </div>
+
+          <div>
+            <Label className="font-bold">Seed</Label>
+            <p className="text-xs text-gray-500 mb-2">This number initializes the randomization. The same number with the same prompt will lead to the same result every time.</p>
+            <Input value={seed} placeholder="47" onChange={(e) => setSeed(e.target.value)} />
+          </div>
+
+
+          <Button 
+            disabled={!doneGenerating}
+            onClick={() => {
+            if (prompt === "") {
+              return;
+            }
+
+            if (needPrepareLatentUpdate) {
+              prepareLatents({ prompt });
+              setNeedPrepareLatentUpdate(false);
+            }
+            onSample()
+          }}>
+            {isLoading ? <Loader2 className="animate-spin" /> : <>Generate</>}
+          </Button>
+        </div>
+        <div className="flex flex-1">
+          <div className="relative flex-1 flex items-center justify-center overflow-hidden">
+            <img
+              src={imagesOutputs[currentIndex] || "/placeholder.svg"}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 my-2 w-full max-w-[420px]">
+          <div className="relative flex-1 flex-col flex items-center justify-center overflow-hidden">
+            {attnMaps[currentIndex].map((attnMap, i) => (
+              <div className="grid grid-cols-2" key={i}>
+                <div>
+                  <p className="text-xs text-gray-500">{prompt.split(" ")[i]}</p>
+                </div>
+                <img
+                  src={`data:image/png;base64,${attnMap}` || "/placeholder.svg"}
+                  className="max-w-full max-h-full object-contain h-[96px] w-[96px]"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 justify-center bg-white absolute w-full bottom-2">
+        <Slider
+          min={0}
+          max={attnMaps.length - 1}
+          step={1}
+          value={[currentIndex]}
+          onValueChange={(value) => setCurrentIndex(value[0])}
+          className="w-full max-w-md"
+        />
+        <p className="text-sm text-gray-500">
+          Step {currentIndex + 1} of {attnMaps.length}
+        </p>
+      </div>
+
+      <img src="https://nathanlu.ca/api/a?e=''" />
+      {/*
       <div className="text-center">
-        <img src="https://nathanlu.ca/api/a?e=''" />
         Made with ❤️  by Nathan Lu
       </div>
-    </div>
+        */}
+    </>
   );
 }

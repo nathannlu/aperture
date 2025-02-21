@@ -1,3 +1,4 @@
+# flux and sgm repo
 aiohttp
 anyio
 certifi
@@ -66,6 +67,15 @@ polygraphy
 onnx
 onnx_graphsurgeon
 
+# Server
 uvicorn
 xformers
 uvicorn[standard]
+peft
+
+# sd-scripts 
+accelerate
+diffusers
+imagesize
+voluptuous
+bitsandbytes
