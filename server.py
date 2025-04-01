@@ -67,15 +67,27 @@ async def websocket_endpoint(websocket: WebSocket):
                     generator=torch.Generator().manual_seed(42),
                 )
 
+
+                tokenizer = pipe.tokenizer
+                token_ids = tokenizer(prompt)['input_ids']
+                total_tokens = [tokenizer.convert_ids_to_tokens(token_id) for token_id in token_ids]
+
+                print("token_ids:", token_ids)
+                print("len(token_ids):", len(token_ids))
+                print("total_tokens:", total_tokens)
+
                 app.state.curr_step = 0
                 app.state.pipe = pipe
                 app.state.prompt = prompt
-                response = {"success": True, "data": parsed_data}
+                app.state.total_tokens = total_tokens
+
+                response = {"type": "prepare_latents_done", "data": {"tokens": total_tokens}}
                 await websocket.send_text(json.dumps(response))  # Send JSON back
 
             elif _type == "on_sample":
                 pipe = app.state.pipe
                 prompt = app.state.prompt
+                total_tokens = app.state.total_tokens
 
                 if app.state.curr_step >= 40:
                     await websocket.send_text(json.dumps({"type": "on_sample_done"}))
@@ -100,8 +112,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 prompt_length = len(prompt.split(" "))
                 cross_attn_maps = []
+                #cross_attn_maps = {}
                 to_pil = transforms.ToPILImage()
-                for i in range(0, prompt_length):
+                for i in range(0, len(total_tokens)):
 
                     individual_cross_attn_map = cross_attn_map[..., i+1] / (cross_attn_map[..., i+1].max() + 0.001)
 

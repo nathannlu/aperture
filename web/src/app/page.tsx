@@ -4,8 +4,7 @@ export default function Home() {
 
   return (
     <>
-    <Editor />
-
+      <Editor />
     </>
   );
 }

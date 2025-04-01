@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,13 @@ import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 
 
+function rotateFirstTokenToEnd(tokens) {
+  if (tokens.length === 0) return tokens; // Handle empty array case
+  const firstToken = tokens.shift(); // Remove the first element
+  tokens.push(firstToken); // Append it to the end
+  return tokens;
+}
+
 export function Editor() {
   const [prompt, setPrompt] = useState("");
   const [seed, setSeed] = useState(47);
@@ -36,6 +43,7 @@ export function Editor() {
   const url = model === "FLUX" ? "/ws-flux" : "/ws";
   const [needPrepareLatentUpdate, setNeedPrepareLatentUpdate] = useState(false);
   const { 
+    tokens,
     outputs,
     isConnected,
     prepareLatents,
@@ -52,6 +60,9 @@ export function Editor() {
   //const attnMaps = outputs.map((output) => `data:image/png;base64,${output.attn_maps[0]}`);
 
   const attnMaps = outputs.map((output) => output.attn_maps);
+
+  const steps = 40;
+  const timelineRef = useRef(null)
 
 
   const { currentIndex, isPlaying, progress, togglePlayPause, reset, setCurrentIndex } = useImagePlayer(imagesOutputs, attnMaps, 1000)
@@ -84,6 +95,22 @@ export function Editor() {
     } 
   }
 
+  const handleTimelineClick = (e: React.MouseEvent) => {
+    //if (!timelineRef.current || dragData) return
+
+    const rect = timelineRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const percentage = x / rect.width
+    const frame = Math.floor(percentage * steps)
+
+    setCurrentIndex(Math.max(0, Math.min(frame, steps - 1)))
+
+
+    //setCurrentFrame(Math.max(0, Math.min(frame, steps - 1)))
+    //if (isPlaying) setIsPlaying(false)
+  }
+
+
 
   useEffect(() => {
     setNeedPrepareLatentUpdate(true);
@@ -91,7 +118,7 @@ export function Editor() {
 
 
   return (
-    <>
+    <div className="flex flex-col w-full">
       <div className="flex flex-wrap">
         <div className="flex flex-col gap-2 my-2 max-w-[420px] p-4">
           <p className="text-xs">
@@ -141,10 +168,10 @@ export function Editor() {
 
         <div className="flex flex-col gap-2 my-2 w-full max-w-[420px]">
           <div className="relative flex-1 flex-col flex items-center justify-center overflow-hidden">
-            {attnMaps[currentIndex].map((attnMap, i) => (
+            {attnMaps[currentIndex]?.length > 0 && attnMaps[currentIndex].map((attnMap, i) => (
               <div className="grid grid-cols-2" key={i}>
                 <div>
-                  <p className="text-xs text-gray-500">{prompt.split(" ")[i]}</p>
+                  <p className="text-xs text-gray-500">{tokens[i]}</p>
                 </div>
                 <img
                   src={`data:image/png;base64,${attnMap}` || "/placeholder.svg"}
@@ -170,12 +197,16 @@ export function Editor() {
         </p>
       </div>
 
-      <img src="https://nathanlu.ca/api/a?e=''" />
+
+
       {/*
+      <img src="https://nathanlu.ca/api/a?e=''" />
       <div className="text-center">
         Made with ❤️  by Nathan Lu
       </div>
         */}
-    </>
+
+
+    </div>
   );
 }

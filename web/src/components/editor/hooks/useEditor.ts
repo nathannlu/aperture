@@ -27,9 +27,17 @@ export const useEditor = (url) => {
   const [step, setStep] = useState(0);
   const [doneGenerating, setDoneGenerating] = useState(true);
 
+  const [tokens, setTokens] = useState([]);
+
   const wsOpts = {
     onMessage: (data) => {
       const parsed = JSON.parse(data);
+      if (parsed.type === "prepare_latents_done") {
+        const { data } = parsed;
+        setTokens(data.tokens);
+      }
+
+
       if (parsed.type === "on_sample") {
         const { data } = parsed;
 
@@ -93,5 +101,6 @@ export const useEditor = (url) => {
     isConnected,
     doneGenerating,
     setDoneGenerating,
+    tokens,
   }
 }
